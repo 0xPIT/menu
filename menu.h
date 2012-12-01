@@ -132,6 +132,20 @@ extern uint8_t menuExecuteCallbackAction(const menuAction_t action);
 */
 menuInfo_t menuInfo(const MenuItem_t * mi);
 
+/*!
+  renders whole menu using callback
+    callback is passed the item to render and the prospect positon on screen
+    (n-th item with regard to maxDisplayedMenuItems)
+
+  render() shall calculate position of item to be rendered and
+  decide using menuCurrentItem, menuLastItem and position passed to callback,
+  weather rendering is neccessary
+*/
+typedef void (*MenuRenderCallback_t)(const MenuItem_t *, uint8_t);
+
+void menuRender(const MenuRenderCallback_t render, uint8_t maxDisplayedMenuItems);
+
+
 // ----------------------------------------------------------------------------- 
 
 #ifdef __cplusplus

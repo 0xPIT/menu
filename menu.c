@@ -85,3 +85,31 @@ menuInfo_t menuInfo(const MenuItem_t * mi) {
   
   return result;
 }
+
+// ---------------------------------------------------------------------------- 
+
+void menuRender(const MenuRenderCallback_t render, uint8_t maxDisplayedMenuItems)
+{
+  uint8_t start = 0;
+  const uint8_t center = maxDisplayedMenuItems >> 1;
+  menuInfo_t mi = menuInfo(menuCurrentItem);
+
+  if (mi.position >= (mi.siblings - center)) { // at end
+    start = mi.siblings - maxDisplayedMenuItems;
+  } 
+  else {
+    start = mi.position - center;
+    if (maxDisplayedMenuItems & 0x01) start--; // center, if odd
+  }
+
+  if (start & 0x80) start = 0; // prevent overflow
+
+  uint8_t itemCount = 0;
+  const MenuItem_t * i = menuChild(menuParent(menuCurrentItem));
+
+  for (; i && i != &menuNull && &i->Next; i = menuNext(i)) {    
+    if (itemCount - start >= maxDisplayedMenuItems) break;
+    if (itemCount >= start) render(i, itemCount - start);
+    itemCount++;
+  }
+}
