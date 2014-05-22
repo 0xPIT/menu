@@ -1,0 +1,206 @@
+#include <avr/pgmspace.h>
+
+
+namespace Menu
+{
+  typedef enum Action_s {
+    actionNone    = 0,
+    actionLabel   = (1<<0), // render label
+    actionDisplay = (1<<1), // display menu
+    actionTrigger = (1<<2), // trigger was pressed
+    actionParent  = (1<<3), // before move to parent
+    actionCustom  = (1<<7)  
+  } Action_t;
+
+  typedef bool (*Callback_t)(Action_t);
+
+  typedef struct Info_s {
+    uint8_t siblings;
+    uint8_t position;
+  } Info_t;
+
+  typedef struct Item_s {
+    struct Item_s const * Next;
+    struct Item_s const * Previous;
+    struct Item_s const * Parent;
+    struct Item_s const * Child;
+    const Callback_t Callback;
+    const char * Label;  
+  } Item_t;
+
+  typedef void (*RenderCallback_t)(const Item_t *, uint8_t);
+
+  // a typesafe null item
+  const Item_t NullItem PROGMEM = { (const Menu::Item_s *)NULL, (const Menu::Item_s *)NULL, (const Menu::Item_s *)NULL, (const Menu::Item_s *)NULL, (const Menu::Callback_t)NULL, (const char *)NULL };
+
+  class Engine {
+  public:
+    const Item_t * currentItem;
+    const Item_t * previousItem;
+    const Item_t * lastInvokedItem; 
+
+  public:
+    Engine() 
+      : currentItem(&NullItem), previousItem(&NullItem), lastInvokedItem(&NullItem)
+    {
+    }
+
+    Engine(const Item_t *initialItem) 
+      : currentItem(initialItem), previousItem(&NullItem), lastInvokedItem(&NullItem)
+    {
+    }
+
+  public:
+    void navigate(const Item_t * targetItem);
+    void invoke(void);
+    bool executeCallbackAction(const Action_t action) const;
+    Info_t itemInfo(const Item_t * item) const;
+    void render(const RenderCallback_t render, uint8_t maxDisplayedMenuItems) const;
+
+  public:
+    const char * getLabel(const Item_t *item = &NullItem) const {
+      if (item == &NullItem) item = Engine::currentItem;
+      return (const char *)pgm_read_word(&item->Label);
+    }
+
+    const Item_t * getPrev(const Item_t *item = &NullItem) const {
+      if (item == &NullItem) item = Engine::currentItem;
+      return reinterpret_cast<const Item_t *>(pgm_read_word(&item->Previous));
+    }
+
+    const Item_t * getNext(const Item_t *item = &NullItem) const {
+      if (item == &NullItem) item = Engine::currentItem;
+      return reinterpret_cast<const Item_t *>(pgm_read_word(&item->Next));
+    }
+
+    const Item_t * getParent(const Item_t *item = &NullItem) const {
+      if (item == &NullItem) item = Engine::currentItem;
+      return reinterpret_cast<const Item_t *>(pgm_read_word(&item->Parent));
+    }
+
+    const Item_t * getChild(const Item_t *item = &NullItem) const {
+      if (item == &NullItem) item = Engine::currentItem;
+      return reinterpret_cast<const Item_t *>(pgm_read_word(&item->Child));
+    }
+  };
+
+  void Engine::navigate(const Item_t * targetItem) {
+    uint8_t commit = true;
+    if (targetItem && targetItem != &NullItem) {
+      if (targetItem == getParent(currentItem)) { // navigating back to parent
+        commit = executeCallbackAction(actionParent); // exit/save callback
+      }
+      if (commit) {
+        previousItem = currentItem;
+        currentItem = targetItem;        
+        executeCallbackAction(actionLabel);
+      }
+    }
+  }
+
+  void Engine::invoke(void) {
+    bool preventTrigger = false;
+
+    if (lastInvokedItem != currentItem) { // prevent 'invoke' twice in a row
+      lastInvokedItem = currentItem;
+      preventTrigger = true; // don't invoke 'trigger' at first Display event
+      executeCallbackAction(actionDisplay);
+    }
+
+    const Item_t *child = getChild();
+    if (child != &NullItem) { // navigate to registered submenuitem
+      navigate(child);
+    }
+    else { // call trigger in already selected item that has no child
+      if (!preventTrigger) {
+        executeCallbackAction(actionTrigger);
+      }
+    }
+  }
+
+
+  bool Engine::executeCallbackAction(const Action_t action) const {
+    if (currentItem && currentItem != &NullItem) {
+      Callback_t callback = (Callback_t)pgm_read_word(&currentItem->Callback);
+
+      if (callback != NULL) {
+        return (*callback)(action);
+      }
+    }
+    return true;
+  }
+
+
+  Info_t Engine::itemInfo(const Item_t * item) const {
+    Info_t result = { 0, 0 };
+
+    const Item_t * i = getChild(getParent());
+
+    //Serial.print("iteminfo start at  ");
+    //Serial.print(getLabel(i));
+
+    for (; i && &i->Next && i != &NullItem; i = getNext(i)) {
+      //Serial.print("test: ");
+      //Serial.println(getLabel(i));
+
+      result.siblings++;
+      if (i == item) {
+        result.position = result.siblings;
+      }
+    }
+    
+    return result;
+  }
+
+  void Engine::render(const RenderCallback_t render, uint8_t maxDisplayedMenuItems) const {    
+    if (currentItem == &NullItem) {
+      Serial.println("not rendering null item");
+      return;
+    }
+
+    Serial.print("start render for ");
+    Serial.println(getLabel(currentItem));
+
+    uint8_t start = 0;
+    uint8_t itemCount = 0;
+    const uint8_t center = maxDisplayedMenuItems >> 1;
+    Info_t mi = itemInfo(currentItem);
+    
+    //Serial.print(" s/p/c ");
+    //Serial.print(mi.siblings);
+    //Serial.println(mi.position);
+    //Serial.println(center);
+
+    if (mi.position >= (mi.siblings - center)) { // at end
+      start = mi.siblings - maxDisplayedMenuItems;
+    } 
+    else {
+      start = mi.position - center;
+      if (maxDisplayedMenuItems & 0x01) start--; // center, if odd
+    }
+
+    //Serial.print(" st: "); Serial.println(start);
+
+    if (start & 0x80) start = 0; // prevent overflow
+
+    // first item in current menu level
+    const Item_t * i = getChild(getParent(currentItem));
+    //Serial.print("render starts from: "); Serial.println(getLabel(i));
+    for (; i && i != &NullItem && &i->Next; i = getNext(i)) {
+      if (itemCount - start >= maxDisplayedMenuItems) break;
+      if (itemCount >= start) render(i, itemCount - start);
+      itemCount++;
+    }
+  }
+
+};
+
+
+#define MenuItem(Name, Label, Next, Previous, Parent, Child, Callback) \
+  extern const Menu::Item_t Next, Previous, Parent, Child; \
+  const Menu::Item_t PROGMEM Name = { \
+    &Next, &Previous, &Parent, &Child, \
+    &Callback, \
+    Label \
+  }
+

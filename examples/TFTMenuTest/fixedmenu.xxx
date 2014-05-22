@@ -1,0 +1,93 @@
+
+void menuInvoke(void) 
+{
+  uint8_t preventTrigger = FALSE;
+
+  if (menuLastInvokedItem != menuCurrentItem) { // prevent 'invoke' twice in a row
+    menuLastInvokedItem = menuCurrentItem;
+    preventTrigger = TRUE; // don't invoke 'trigger' at first Display event
+    menuExecuteCallbackAction(menuActionDisplay);
+  }
+
+  if (menuCurrentChild != &menuNull) { // navigate to registered submenuitem
+    menuNavigate(menuCurrentChild);
+  }
+  else { // call trigger in already selected item that has no child
+    if (!preventTrigger) {
+      menuExecuteCallbackAction(menuActionTrigger);
+    }
+  }
+}
+
+uint8_t menuExecuteCallbackAction(const menuAction_t action) 
+{
+  if (menuCurrentItem && menuCurrentItem != &menuNull) {
+    MenuCallback_t callback = (MenuCallback_t)pgm_read_word(&menuCurrentItem->Callback);
+
+    if (callback != NULL) {
+      return (*callback)(action);
+    }
+  }
+  return TRUE;
+}
+
+void menuNavigate(const MenuItem_t * newitem)
+{
+  uint8_t commit = TRUE;
+  if (newitem && newitem != &menuNull) {
+    if (newitem == menuParent(menuCurrentItem)) { // navigating back to parent
+      commit = menuExecuteCallbackAction(menuActionParent); // exit/save callback
+    }
+    if (commit != FALSE) {
+      menuPreviousItem = menuCurrentItem;
+      menuCurrentItem = newitem;
+      menuExecuteCallbackAction(menuActionLabel);
+    }
+  }
+}
+
+menuInfo_t menuInfo(const MenuItem_t * mi) {
+  menuInfo_t result = { 0, 0 };
+
+  const MenuItem_t * i = menuChild(menuParent(menuCurrentItem));
+  for (; i && &i->Next && i != &menuNull; i = menuNext(i)) {
+    result.siblings++;
+    if (i == mi) {
+      result.position = result.siblings;
+    }
+  }
+
+  //result.siblings--;
+  
+  return result;
+}
+
+// ---------------------------------------------------------------------------- 
+
+void menuRender(const MenuRenderCallback_t render, uint8_t maxDisplayedMenuItems)
+{
+  uint8_t start = 0;
+  uint8_t itemCount = 0;
+  const uint8_t center = maxDisplayedMenuItems >> 1;
+  menuInfo_t mi = menuInfo(menuCurrentItem);
+
+  if (mi.position >= (mi.siblings - center)) { // at end
+    start = mi.siblings - maxDisplayedMenuItems;
+  } 
+  else {
+    start = mi.position - center;
+    if (maxDisplayedMenuItems & 0x01) start--; // center, if odd
+  }
+
+  if (start & 0x80) start = 0; // prevent overflow
+
+  // first item in current menu level
+  const MenuItem_t * i = menuChild(menuParent(menuCurrentItem));
+
+  for (; i && i != &menuNull && &i->Next; i = menuNext(i)) {
+    if (itemCount - start >= maxDisplayedMenuItems) break;
+    if (itemCount >= start) render(i, itemCount - start);
+    itemCount++;
+  }
+}
+
