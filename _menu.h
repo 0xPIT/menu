@@ -8,11 +8,13 @@
 #ifndef __have_menu_h__
 #define __have_menu_h__
 
+#include "Arduino.h"
+
 // ----------------------------------------------------------------------------- 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+//#ifdef __cplusplus
+//extern "C" {
+//#endif
   
 // ----------------------------------------------------------------------------- 
 
@@ -66,18 +68,17 @@ typedef struct MenuItem_s {
   struct MenuItem_s const * Child;
 
   const MenuCallback_t Callback;
-  const char * Label;
+  const char * Label;  
 } MenuItem_t; 
 
 // ----------------------------------------------------------------------------- 
 
 #define menuItem(Name, Label, Next, Previous, Parent, Child, Callback) \
   extern const MenuItem_t Next, Previous, Parent, Child; \
-  const char __labelFor_##Name [] __attribute__((__progmem__)) = Label; \
   const MenuItem_t __attribute__((__progmem__)) Name = { \
     &Next, &Previous, &Parent, &Child, \
     &Callback, \
-    __labelFor_##Name \
+    Label \
   }
 
 #define menuLabel(item) ((const char *)pgm_read_word(&item->Label))
@@ -130,7 +131,7 @@ extern uint8_t menuExecuteCallbackAction(const menuAction_t action);
 /*!
   reads total sibling count and position of menu item
 */
-menuInfo_t menuInfo(const MenuItem_t * mi);
+extern menuInfo_t menuInfo(const MenuItem_t * mi);
 
 /*!
   renders whole menu using callback
@@ -143,14 +144,14 @@ menuInfo_t menuInfo(const MenuItem_t * mi);
 */
 typedef void (*MenuRenderCallback_t)(const MenuItem_t *, uint8_t);
 
-void menuRender(const MenuRenderCallback_t render, uint8_t maxDisplayedMenuItems);
+extern void menuRender(const MenuRenderCallback_t render, uint8_t maxDisplayedMenuItems);
 
 
 // ----------------------------------------------------------------------------- 
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+//#ifdef __cplusplus
+//} // extern "C"
+//#endif
 
 // ----------------------------------------------------------------------------- 
 
