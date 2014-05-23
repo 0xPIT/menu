@@ -21,7 +21,7 @@ enum Icons {
   IconLeft = 0,
   IconRight = 1,
   IconBack = 2,
-  IconDot = 3
+  IconBlock = 3
 };
 
 // ----------------------------------------------------------------------------
@@ -89,23 +89,26 @@ bool menuBack(const Menu::Action_t a) {
 
 // ----------------------------------------------------------------------------
 
-uint8_t menuItemsVisible = 5;
+uint8_t menuItemsVisible = LCD_LINES;
 
 void renderMenuItem(const Menu::Item_t *mi, uint8_t pos) {
   lcd.setCursor(0, pos);
+
   // cursor
   if (engine->currentItem == mi) {
-    lcd.write((uint8_t)IconRight);
+    lcd.write((uint8_t)IconBlock);
   }
   else {
-    lcd.write(20);
+    lcd.write(20); // space
   }
 
   lcd.print(engine->getLabel(mi));
 
   // mark items that have children
   if (engine->getChild(mi) != &Menu::NullItem) {
-    lcd.print(" >      ");
+    lcd.write(20);
+    lcd.write((uint8_t)IconRight);
+    lcd.print("       ");
   }
 }
 
@@ -126,7 +129,7 @@ MenuItem(miSettings, "Settings", miTest1, Menu::NullItem, miExit, miCalibrateLo,
   MenuItem(miChannel1, "Channel 1", Menu::NullItem, miChannel0, miSettings, miChView1, menuDummy);
     MenuItem(miChView1,  "Ch1:View",  miChScale1,     Menu::NullItem, miChannel1, Menu::NullItem, menuDummy);    
     MenuItem(miChScale1, "Ch1:Scale", miChBack1,      miChView1,      miChannel1, Menu::NullItem, menuDummy); 
-    MenuItem(miChBack1,  "Back",      Menu::NullItem, miChScale1,     miChannel1, Menu::NullItem, menuBack);
+    MenuItem(miChBack1,  "Back \02",      Menu::NullItem, miChScale1,     miChannel1, Menu::NullItem, menuBack);
 
 MenuItem(miTest1, "Test 1 Menu", miTest2,        miSettings, miExit, Menu::NullItem, menuDummy);
 MenuItem(miTest2, "Test 2 Menu", miTest3,        miTest1,    miExit, Menu::NullItem, menuDummy);
@@ -172,14 +175,14 @@ byte back[8] = {
   0b00000
 };
 
-byte dot[8] = {
+byte block[8] = {
   0b00000,
-  0b00100,
   0b01110,
-  0b11111,
-  0b11111,
   0b01110,
-  0b00100,
+  0b01110,
+  0b01110,
+  0b01110,
+  0b01110,
   0b00000
 };
 
@@ -196,7 +199,7 @@ void setup() {
   lcd.createChar(IconLeft, left);
   lcd.createChar(IconRight, right);
   lcd.createChar(IconBack, back);
-  lcd.createChar(IconDot, dot);
+  lcd.createChar(IconBlock, block);
 
   Timer1.initialize(1000);
   Timer1.attachInterrupt(timerIsr); 
@@ -204,6 +207,8 @@ void setup() {
   engine = new Menu::Engine(&Menu::NullItem);
   menuExit(Menu::actionNone); // reset to initial state
 }
+
+// ----------------------------------------------------------------------------
 
 int16_t encMovement;
 int16_t encAbsolute;

@@ -55,10 +55,10 @@ namespace Menu
     void navigate(const Item_t * targetItem);
     void invoke(void);
     bool executeCallbackAction(const Action_t action) const;
-    Info_t itemInfo(const Item_t * item) const;
     void render(const RenderCallback_t render, uint8_t maxDisplayedMenuItems) const;
 
   public:
+    Info_t getItemInfo(const Item_t * item) const;
     const   char * getLabel (const Item_t * item = NULL) const;
     const Item_t * getPrev  (const Item_t * item = NULL) const;
     const Item_t * getNext  (const Item_t * item = NULL) const;

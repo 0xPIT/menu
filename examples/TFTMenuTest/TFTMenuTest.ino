@@ -12,10 +12,9 @@
 
 class ScopedTimer {
 public:
-  ScopedTimer(const char * id)
-    :label(id) 
+  ScopedTimer(const char * Label)
+    : label(Label), ts(millis())
   {
-    ts = millis();
   }
   ~ScopedTimer() {
     Serial.print(label); Serial.print(": ");
@@ -23,7 +22,7 @@ public:
   }
 private:
   const char *label;
-  unsigned long ts;
+  const unsigned long ts;
 };
 
 #define clampValue(val, lo, hi) if (val > hi) val = hi; if (val < lo) val = lo;
@@ -37,10 +36,6 @@ private:
 #define LCD_DC   7
 #define LCD_RST  8
 Adafruit_ST7735 tft = Adafruit_ST7735(LCD_CS, LCD_DC, LCD_RST);
-
-// in landscape mode
-//   small font: 25 chars, 15 lines
-//   font 2: 12 chars, 8 lines
 
 // ----------------------------------------------------------------------------
 // encoder
@@ -99,8 +94,6 @@ void renderMenuItem(const Menu::Item_t *mi, uint8_t pos) {
 
   uint8_t y = pos * menuItemHeight + 2;
 
-  //Serial.print(" render item "); Serial.println(engine->getLabel(mi));
-
   tft.setCursor(10, y);
 
   // a cursor
@@ -113,6 +106,7 @@ void renderMenuItem(const Menu::Item_t *mi, uint8_t pos) {
   }
 }
 
+// ----------------------------------------------------------------------------
 
 // Name, Label, Next, Previous, Parent, Child, Callback
 MenuItem(miExit, "", Menu::NullItem, Menu::NullItem, Menu::NullItem, miSettings, menuExit);
@@ -140,6 +134,7 @@ MenuItem(miTest6, "Test 6 Menu", miTest7,        miTest5,    miExit, Menu::NullI
 MenuItem(miTest7, "Test 7 Menu", miTest8,        miTest6,    miExit, Menu::NullItem, menuDummy);
 MenuItem(miTest8, "Test 8 Menu", Menu::NullItem, miTest7,    miExit, Menu::NullItem, menuDummy);
 
+// ----------------------------------------------------------------------------
 
 void setup() {
   Serial.begin(57600);
@@ -159,12 +154,17 @@ void setup() {
   menuExit(Menu::actionDisplay); // reset to initial state
 }
 
+// ----------------------------------------------------------------------------
+
 int16_t encMovement;
 int16_t encAbsolute;
 int16_t encLastAbsolute = -1;
 bool updateMenu = false;
 
+// ----------------------------------------------------------------------------
+
 void loop() {
+
   // handle encoder
   encMovement = Encoder.getValue();
   if (encMovement) {
@@ -227,9 +227,8 @@ void loop() {
       tft.fillRect(8, 1, 120, 100, ST7735_BLACK);
     }
 
-#if 0
     // simple scrollbar
-    Menu::Info_t mi = engine->itemInfo(engine->currentItem);
+    Menu::Info_t mi = engine->getItemInfo(engine->currentItem);
     uint8_t sbTop = 0, sbWidth = 4, sbLeft = 100;
     uint8_t sbItems = minValue(menuItemsVisible, mi.siblings);
     uint8_t sbHeight = sbItems * menuItemHeight;
@@ -239,11 +238,12 @@ void loop() {
     tft.fillRect(sbLeft, sbMarkTop, sbWidth, sbMarkHeight, ST7735_RED);
 
     // debug scrollbar values
+#if 0
     char buf[30];
     sprintf(buf, "itms: %d, h: %d, mh: %d, mt: %d", sbItems, sbHeight, sbMarkHeight, sbMarkTop);
     Serial.println(buf);
 #endif
-  
+
     // render the menu
     {
       //ScopedTimer tm("render menu");

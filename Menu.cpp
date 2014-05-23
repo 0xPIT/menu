@@ -102,7 +102,7 @@ bool Engine::executeCallbackAction(const Action_t action) const {
 
 // ----------------------------------------------------------------------------
 
-Info_t Engine::itemInfo(const Item_t * item) const {
+Info_t Engine::getItemInfo(const Item_t * item) const {
   Info_t result = { 0, 0 };
   const Item_t * i = getChild(getParent());
   for (; i && i != &Menu::NullItem && &i->Next && i->Next != &Menu::NullItem; i = getNext(i)) {
@@ -111,7 +111,7 @@ Info_t Engine::itemInfo(const Item_t * item) const {
       result.position = result.siblings;
     }
   }
-  
+
   return result;
 }
 
@@ -125,20 +125,20 @@ void Engine::render(const RenderCallback_t render, uint8_t maxDisplayedMenuItems
   uint8_t start = 0;
   uint8_t itemCount = 0;
   const uint8_t center = maxDisplayedMenuItems >> 1;
-  Info_t mi = itemInfo(currentItem);
+  Info_t mi = getItemInfo(currentItem);
   
   if (mi.position >= (mi.siblings - center)) { // at end
     start = mi.siblings - maxDisplayedMenuItems;
   } 
   else {
     start = mi.position - center;
-    if (maxDisplayedMenuItems & 0x01) start--; // center, if odd
+    if (maxDisplayedMenuItems & 0x01) start--; // center if odd
   }
 
   if (start & 0x80) start = 0; // prevent overflow
 
   // first item in current menu level
-  const Item_t * i = getChild(getParent(currentItem));  
+  const Item_t * i = getChild(getParent());  
   for (; i && i != &Menu::NullItem && &i->Next && i->Next != &Menu::NullItem; i = getNext(i)) {
     if (itemCount - start >= maxDisplayedMenuItems) break;
     if (itemCount >= start) render(i, itemCount - start);
