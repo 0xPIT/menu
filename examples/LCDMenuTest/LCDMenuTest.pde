@@ -1,30 +1,31 @@
 #include <Arduino.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_ST7735.h>
-#include <SPI.h>
+#include <LiquidCrystal.h>
 #include <TimerOne.h>
 #include <ClickEncoder.h>
 #include <TimerOne.h>
 #include <Menu.h>
 
 // ----------------------------------------------------------------------------
-// helpers
 
-class ScopedTimer {
-public:
-  ScopedTimer(const char * id)
-    :label(id) 
-  {
-    ts = millis();
-  }
-  ~ScopedTimer() {
-    Serial.print(label); Serial.print(": ");
-    Serial.println(millis() - ts);
-  }
-private:
-  const char *label;
-  unsigned long ts;
+#define LCD_RS     8
+#define LCD_RW     9
+#define LCD_EN    10
+#define LCD_D4     4
+#define LCD_D5     5
+#define LCD_D6     6
+#define LCD_D7     7
+#define LCD_CHARS 20
+#define LCD_LINES  4
+
+enum Icons {
+  IconLeft = 0,
+  IconRight = 1,
+  IconBack = 2,
+  IconDot = 3
 };
+
+// ----------------------------------------------------------------------------
+// helpers
 
 #define clampValue(val, lo, hi) if (val > hi) val = hi; if (val < lo) val = lo;
 #define maxValue(a, b) ((a > b) ? a : b)
@@ -32,15 +33,12 @@ private:
 
 // ----------------------------------------------------------------------------
 // display
-
-#define LCD_CS   9
-#define LCD_DC   7
-#define LCD_RST  8
-Adafruit_ST7735 tft = Adafruit_ST7735(LCD_CS, LCD_DC, LCD_RST);
-
-// in landscape mode
-//   small font: 25 chars, 15 lines
-//   font 2: 12 chars, 8 lines
+LiquidCrystal lcd(LCD_RS, 
+#if LCD_RW >= 0 // RW is not necessary if lcd is on dedicated pins
+  LCD_RW,
+#endif
+  LCD_EN, LCD_D4, LCD_D5, LCD_D6, LCD_D7
+);
 
 // ----------------------------------------------------------------------------
 // encoder
@@ -92,29 +90,28 @@ bool menuBack(const Menu::Action_t a) {
 // ----------------------------------------------------------------------------
 
 uint8_t menuItemsVisible = 5;
-uint8_t menuItemHeight = 12;
 
 void renderMenuItem(const Menu::Item_t *mi, uint8_t pos) {
-  //ScopedTimer tm("  render menuitem");
+  lcd.setCursor(0, pos);
+  // cursor
+  if (engine->currentItem == mi) {
+    lcd.write((uint8_t)IconRight);
+  }
+  else {
+    lcd.write(20);
+  }
 
-  uint8_t y = pos * menuItemHeight + 2;
-
-  //Serial.print(" render item "); Serial.println(engine->getLabel(mi));
-
-  tft.setCursor(10, y);
-
-  // a cursor
-  tft.drawRect(8, y - 2, 90, menuItemHeight, (engine->currentItem == mi) ? ST7735_RED : ST7735_BLACK);
-  tft.print(engine->getLabel(mi));
+  lcd.print(engine->getLabel(mi));
 
   // mark items that have children
   if (engine->getChild(mi) != &Menu::NullItem) {
-    tft.print(" >   ");
+    lcd.print(" >      ");
   }
 }
 
-
+// ----------------------------------------------------------------------------
 // Name, Label, Next, Previous, Parent, Child, Callback
+
 MenuItem(miExit, "", Menu::NullItem, Menu::NullItem, Menu::NullItem, miSettings, menuExit);
 
 MenuItem(miSettings, "Settings", miTest1, Menu::NullItem, miExit, miCalibrateLo, menuDummy);
@@ -140,29 +137,80 @@ MenuItem(miTest6, "Test 6 Menu", miTest7,        miTest5,    miExit, Menu::NullI
 MenuItem(miTest7, "Test 7 Menu", miTest8,        miTest6,    miExit, Menu::NullItem, menuDummy);
 MenuItem(miTest8, "Test 8 Menu", Menu::NullItem, miTest7,    miExit, Menu::NullItem, menuDummy);
 
+// ----------------------------------------------------------------------------
+
+byte left[8] = {
+  0b00010,
+  0b00110,
+  0b01110,
+  0b11110,
+  0b01110,
+  0b00110,
+  0b00010,
+  0b00000
+};
+
+byte right[8] = {
+  0b01000,
+  0b01100,
+  0b01110,
+  0b01111,
+  0b01110,
+  0b01100,
+  0b01000,
+  0b00000
+};
+
+byte back[8] = {
+  0b00000,
+  0b00100,
+  0b01100,
+  0b11111,
+  0b01101,
+  0b00101,
+  0b00001,
+  0b00000
+};
+
+byte dot[8] = {
+  0b00000,
+  0b00100,
+  0b01110,
+  0b11111,
+  0b11111,
+  0b01110,
+  0b00100,
+  0b00000
+};
+
+// ----------------------------------------------------------------------------
 
 void setup() {
   Serial.begin(57600);
   Serial.print("Starting...");
 
-  tft.initR(INITR_REDTAB);
-  tft.setTextWrap(false);
-  tft.setTextSize(1);
-  tft.setRotation(3);
+  lcd.begin(LCD_CHARS, LCD_LINES);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+
+  lcd.createChar(IconLeft, left);
+  lcd.createChar(IconRight, right);
+  lcd.createChar(IconBack, back);
+  lcd.createChar(IconDot, dot);
 
   Timer1.initialize(1000);
   Timer1.attachInterrupt(timerIsr); 
 
-  pinMode(MISO, INPUT_PULLUP);
-
   engine = new Menu::Engine(&Menu::NullItem);
-  menuExit(Menu::actionDisplay); // reset to initial state
+  menuExit(Menu::actionNone); // reset to initial state
 }
 
 int16_t encMovement;
 int16_t encAbsolute;
 int16_t encLastAbsolute = -1;
 bool updateMenu = false;
+
+// ----------------------------------------------------------------------------
 
 void loop() {
   // handle encoder
@@ -194,10 +242,12 @@ void loop() {
 
       if (systemState == State::Default) {
           Encoder.setAccelerationEnabled(!Encoder.getAccelerationEnabled());
-          tft.setTextSize(1);
-          tft.setCursor(10, 42);
-          tft.print("Acceleration: ");
-          tft.print((Encoder.getAccelerationEnabled()) ? "on " : "off");
+
+          if (LCD_LINES > 2) {
+            lcd.setCursor(0, 2);
+            lcd.print("Acceleration: ");
+            lcd.print((Encoder.getAccelerationEnabled()) ? "on " : "off");
+          }          
       }
       break;
 
@@ -207,9 +257,6 @@ void loop() {
         // disable acceleration, reset in menuExit()
         lastEncoderAccelerationState = Encoder.getAccelerationEnabled();
         Encoder.setAccelerationEnabled(false);
-
-        tft.fillScreen(ST7735_BLACK);
-        tft.setTextColor(ST7735_WHITE, ST7735_BLACK);
 
         engine->navigate(&miSettings);
 
@@ -224,71 +271,48 @@ void loop() {
     updateMenu = false;
     
     if (!encMovement) { // clear menu on child/parent navigation
-      tft.fillRect(8, 1, 120, 100, ST7735_BLACK);
+      lcd.clear();
     }
-
-#if 0
-    // simple scrollbar
-    Menu::Info_t mi = engine->itemInfo(engine->currentItem);
-    uint8_t sbTop = 0, sbWidth = 4, sbLeft = 100;
-    uint8_t sbItems = minValue(menuItemsVisible, mi.siblings);
-    uint8_t sbHeight = sbItems * menuItemHeight;
-    uint8_t sbMarkHeight = sbHeight * sbItems / mi.siblings;
-    uint8_t sbMarkTop = ((sbHeight - sbMarkHeight) / mi.siblings) * (mi.position -1);
-    tft.fillRect(sbLeft, sbTop,     sbWidth, sbHeight,     ST7735_WHITE);
-    tft.fillRect(sbLeft, sbMarkTop, sbWidth, sbMarkHeight, ST7735_RED);
-
-    // debug scrollbar values
-    char buf[30];
-    sprintf(buf, "itms: %d, h: %d, mh: %d, mt: %d", sbItems, sbHeight, sbMarkHeight, sbMarkTop);
-    Serial.println(buf);
-#endif
   
     // render the menu
-    {
-      //ScopedTimer tm("render menu");
-      engine->render(renderMenuItem, menuItemsVisible);
-    }
+    engine->render(renderMenuItem, menuItemsVisible);
 
-    {
-      ScopedTimer tm("helptext");
-      tft.setTextSize(1);
-      tft.setCursor(10, 110);
-      tft.print("Doubleclick to ");
+    /*
+    if (LCD_LINES > 2) {
+      lcd.setCursor(0, LCD_LINES - 1);
+      lcd.print("Doubleclick to ");
       if (engine->getParent() == &miExit) {
-        tft.print("exit. ");
+        lcd.print("exit. ");
       }
       else {
-        tft.print("go up.");
+        lcd.print("go up.");
       }
     }
+    */
   }
 
   // dummy "application"
   if (systemState == State::Default) {
     if (systemState != previousSystemState) {
       previousSystemState = systemState;
-      encLastAbsolute = -999; // force updateMenu
-      tft.fillScreen(ST7735_WHITE);
-      tft.setTextColor(ST7735_BLACK, ST7735_WHITE);
-      tft.setCursor(10, 10);
-      tft.setTextSize(2);
-      tft.print("Main Screen");
+      encLastAbsolute = -999;
 
-      tft.setTextSize(1);
-      tft.setCursor(10, 110);
-      tft.print("Hold button for setup");
+      lcd.setCursor(0, 0);
+      lcd.print("Main Screen");
+
+      if (LCD_LINES > 2) {
+        lcd.setCursor(0, LCD_LINES - 1);
+        lcd.print("Hold for setup");
+      }
     }
 
     if (encAbsolute != encLastAbsolute) {
       encLastAbsolute = encAbsolute; 
-      tft.setCursor(10, 30);
-      tft.setTextSize(1);
-      tft.print("Position:");
-      tft.setCursor(70, 30);
       char tmp[10];
       sprintf(tmp, "%4d", encAbsolute);
-      tft.print(tmp);
+      lcd.setCursor(0, 1);
+      lcd.print("Position: ");
+      lcd.print(tmp);
     }
   }
 }
