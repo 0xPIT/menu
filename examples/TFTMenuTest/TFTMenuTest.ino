@@ -148,7 +148,10 @@ void setup() {
   Timer1.initialize(1000);
   Timer1.attachInterrupt(timerIsr); 
 
-  pinMode(MISO, INPUT_PULLUP);
+  pinMode(MISO, OUTPUT);
+  pinMode(MOSI, OUTPUT);
+  // enable pull up, otherwise display flickers
+  PORTB |= (1 << MOSI) | (1 << MISO); 
 
   engine = new Menu::Engine(&Menu::NullItem);
   menuExit(Menu::actionDisplay); // reset to initial state

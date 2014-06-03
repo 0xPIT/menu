@@ -58,10 +58,11 @@ void Engine::navigate(const Item_t * targetItem) {
   if (targetItem && targetItem != &Menu::NullItem) {
     if (targetItem == getParent(currentItem)) { // navigating back to parent
       commit = executeCallbackAction(actionParent); // exit/save callback
+      lastInvokedItem = &Menu::NullItem;
     }
     if (commit) {
       previousItem = currentItem;
-      currentItem = targetItem;        
+      currentItem = targetItem;
       executeCallbackAction(actionLabel);
     }
   }

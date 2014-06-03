@@ -15,10 +15,10 @@ namespace Menu
 {
   typedef enum Action_s {
     actionNone    = 0,
-    actionLabel   = (1<<0), // render label
-    actionDisplay = (1<<1), // display menu
-    actionTrigger = (1<<2), // trigger was pressed
-    actionParent  = (1<<3), // before move to parent
+    actionLabel   = (1<<0), // render label when user scrolls through menu items
+    actionDisplay = (1<<1), // display menu, after user selected a menu item
+    actionTrigger = (1<<2), // trigger was pressed while menue was already active
+    actionParent  = (1<<3), // before moving to parent, useful for e.g. "save y/n?" or autosave
     actionCustom  = (1<<7)  
   } Action_t;
 
