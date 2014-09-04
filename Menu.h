@@ -8,8 +8,13 @@
 #ifndef __have_menu_h__
 #define __have_menu_h__
 
-#include <Arduino.h>
-#include <avr/pgmspace.h>
+#ifdef ARDUINO
+# include <Arduino.h>
+#else
+# include <avr/pgmspace.h>
+# include <inttypes.h>
+# include <stdlib.h>
+#endif
 
 namespace Menu
 {
